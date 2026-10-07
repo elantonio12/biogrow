@@ -1,6 +1,8 @@
 import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { expand } from './lsystem.js';
+import { interpret } from './turtle.js';
 
 // Escena
 const scene = new THREE.Scene();
@@ -40,13 +42,18 @@ const ground = new THREE.Mesh(
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 
-// Cubo de prueba (lo quitaremos después)
-const cube = new THREE.Mesh(
-  new THREE.BoxGeometry(1, 1, 1),
-  new THREE.MeshStandardMaterial({ color: 0x66bb6a })
+const iterations = 3;
+const str = expand('F', { F: 'F[+F][&F]F[-F][^F]F' }, iterations);
+const segments = interpret(str, { angle: 25, length: 4 / 3 ** iterations });
+
+const points = [];
+for (const s of segments) points.push(s.start, s.end);
+
+const plant = new THREE.LineSegments(
+  new THREE.BufferGeometry().setFromPoints(points),
+  new THREE.LineBasicMaterial({ color: 0x8bc34a })
 );
-cube.position.y = 0.5;
-scene.add(cube);
+scene.add(plant);
 
 // Ajuste al cambiar el tamaño de la ventana
 window.addEventListener('resize', () => {
@@ -58,7 +65,6 @@ window.addEventListener('resize', () => {
 // Ciclo de render
 function animate() {
   requestAnimationFrame(animate);
-  cube.rotation.y += 0.01;
   controls.update();
   renderer.render(scene, camera);
 }
