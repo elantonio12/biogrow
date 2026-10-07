@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { expand } from './lsystem.js';
 import { interpret } from './turtle.js';
+import { buildPlant } from './plant.js';
 
 // Escena
 const scene = new THREE.Scene();
@@ -41,19 +42,34 @@ const ground = new THREE.Mesh(
 );
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
-
-const iterations = 3;
+//plant
+const iterations = 4;
 const str = expand('F', { F: 'F[+F][&F]F[-F][^F]F' }, iterations);
 const segments = interpret(str, { angle: 25, length: 4 / 3 ** iterations });
+
+// Ordenar por profundidad: tronco primero, ramas finas al final
+segments.sort((a, b) => a.depth - b.depth);
 
 const points = [];
 for (const s of segments) points.push(s.start, s.end);
 
+const geometry = new THREE.BufferGeometry().setFromPoints(points);
+geometry.setDrawRange(0, 0); // al inicio no se dibuja nada
+
 const plant = new THREE.LineSegments(
-  new THREE.BufferGeometry().setFromPoints(points),
+  geometry,
   new THREE.LineBasicMaterial({ color: 0x8bc34a })
 );
 scene.add(plant);
+
+// Control del crecimiento
+const growthDuration = 15; // segundos que tarda en crecer completa
+let startTime = performance.now();
+
+// Presiona R para reiniciar la animación
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'r' || e.key === 'R') startTime = performance.now();
+});
 
 // Ajuste al cambiar el tamaño de la ventana
 window.addEventListener('resize', () => {
@@ -65,6 +81,11 @@ window.addEventListener('resize', () => {
 // Ciclo de render
 function animate() {
   requestAnimationFrame(animate);
+
+  const t = Math.min((performance.now() - startTime) / 1000 / growthDuration, 1);
+  const visibleSegments = Math.floor(t * segments.length);
+  geometry.setDrawRange(0, visibleSegments * 2); // 2 puntos por segmento
+
   controls.update();
   renderer.render(scene, camera);
 }
