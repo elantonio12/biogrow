@@ -14,7 +14,7 @@ export function createScene(container = document.body) {
     0.1,
     1000
   );
-  camera.position.set(4, 3, 6);
+  camera.position.set(3.5, 2.6, 4.8);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);

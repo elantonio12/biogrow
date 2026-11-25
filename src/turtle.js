@@ -5,7 +5,9 @@ const AXIS_Y = new THREE.Vector3(0, 1, 0);
 const AXIS_Z = new THREE.Vector3(0, 0, 1);
 
 // Lee la cadena del sistema-L y devuelve una lista de segmentos:
-// [{ start: Vector3, end: Vector3, depth: número }, ...]
+// [{ start: Vector3, end: Vector3, depth: número, tip: booleano }, ...]
+// `tip` es verdadero si de ese segmento ya no sale nada (ni continuación
+// ni ramas laterales): ahí es donde se colocan las hojas.
 export function interpret(str, { angle = 25, length = 1, shrink = 0.8 } = {}) {
   const rad = THREE.MathUtils.degToRad(angle);
 
@@ -14,6 +16,8 @@ export function interpret(str, { angle = 25, length = 1, shrink = 0.8 } = {}) {
   let quat = new THREE.Quaternion(); // orientación (sin rotar = apunta hacia +Y)
   let len = length;
   let depth = 0;
+
+  let parent = -1; // índice del segmento del que sale el siguiente
 
   const stack = [];
   const segments = [];
@@ -29,7 +33,9 @@ export function interpret(str, { angle = 25, length = 1, shrink = 0.8 } = {}) {
       case 'F': {
         const dir = AXIS_Y.clone().applyQuaternion(quat); // hacia dónde mira
         const end = pos.clone().addScaledVector(dir, len);
-        segments.push({ start: pos.clone(), end: end.clone(), depth });
+        if (parent >= 0) segments[parent].tip = false; // el padre ya tiene sucesor
+        segments.push({ start: pos.clone(), end: end.clone(), depth, tip: true });
+        parent = segments.length - 1;
         pos = end;
         break;
       }
@@ -40,13 +46,14 @@ export function interpret(str, { angle = 25, length = 1, shrink = 0.8 } = {}) {
       case '\\': turn(AXIS_Y,  rad); break; // rodar
       case '/':  turn(AXIS_Y, -rad); break;
       case '[':
-        stack.push({ pos: pos.clone(), quat: quat.clone(), len, depth });
+        stack.push({ pos: pos.clone(), quat: quat.clone(), len, depth, parent });
         depth += 1;
         len *= shrink; // las ramas laterales son más cortas
         break;
       case ']': {
         const s = stack.pop();
-        pos = s.pos; quat = s.quat; len = s.len; depth = s.depth;
+        if (!s) throw new Error('Corchete "]" sin su "[" correspondiente');
+        pos = s.pos; quat = s.quat; len = s.len; depth = s.depth; parent = s.parent;
         break;
       }
     }

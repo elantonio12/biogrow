@@ -19,7 +19,7 @@ export function fitToHeight(segments, targetHeight) {
 // Convierte la lista de segmentos en mallas 3D (ramas + hojas).
 // Los segmentos deben venir ordenados en el orden en que deben crecer.
 // Devuelve el grupo y una función setGrowth(t) con t en [0, 1].
-export function buildPlant(segments, { radius = 0.06, taper = 0.7 } = {}) {
+export function buildPlant(segments, { radius = 0.06, taper = 0.7, leafSize = 0.15 } = {}) {
   const group = new THREE.Group();
 
   // --- RAMAS: un cilindro por segmento, con InstancedMesh ---
@@ -52,11 +52,10 @@ export function buildPlant(segments, { radius = 0.06, taper = 0.7 } = {}) {
   branchData.forEach((_, i) => setBranchMatrix(i));
   group.add(branches);
 
-  // --- HOJAS: al final de las ramas más profundas ---
-  const maxDepth = segments.reduce((max, s) => Math.max(max, s.depth), 0);
+  // --- HOJAS: en la punta de cada rama (segmentos marcados como tip) ---
   const leafSegments = [];
   segments.forEach((s, i) => {
-    if (s.depth >= maxDepth - 1) leafSegments.push(i);
+    if (s.tip) leafSegments.push(i);
   });
 
   const leafGeo = new THREE.SphereGeometry(1, 8, 6);
@@ -69,7 +68,8 @@ export function buildPlant(segments, { radius = 0.06, taper = 0.7 } = {}) {
     const s = segments[segIndex];
     leafDir.subVectors(s.end, s.start).normalize();
     leafQuat.setFromUnitVectors(UP, leafDir);
-    scale.set(0.12, 0.04, 0.2); // esfera achatada: aproximación simple de una hoja
+    // esfera achatada: aproximación simple de una hoja
+    scale.set(leafSize * 0.6, leafSize * 0.2, leafSize);
     m.compose(s.end, leafQuat, scale);
     leaves.setMatrixAt(i, m);
   });
