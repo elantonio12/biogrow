@@ -51,20 +51,23 @@ export const SPECIES = {
   },
 
   estocastica: {
-    // Misma especie, pero cada semilla produce un individuo distinto
+    // Misma especie, pero cada semilla produce un individuo distinto.
+    // X es un ápice (yema) que se reescribe; F → FF hace que los
+    // entrenudos viejos se alarguen mientras la planta crece.
     name: 'Planta estocástica',
-    axiom: 'F',
+    axiom: 'X',
     rules: {
-      F: [
-        { p: 0.34, to: 'F[+F]/F[-F]F' },
-        { p: 0.33, to: 'F[&F]\\F[^F]F' },
-        { p: 0.33, to: 'F[+F][^F]/F' },
+      X: [
+        { p: 0.34, to: 'F[+X]/F[-X]X' },
+        { p: 0.33, to: 'F[&X]\\F[^X]X' },
+        { p: 0.33, to: 'F[+X][^X]/FX' },
       ],
+      F: 'FF',
     },
     angle: 30,
     shrink: 1,
-    iterations: 5,
-    maxIterations: 6,
+    iterations: 6,
+    maxIterations: 7,
     height: 3,
     radius: 0.05,
     leafSize: 0.12,
