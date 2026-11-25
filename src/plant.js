@@ -41,7 +41,7 @@ export function buildPlant(segments, { radius = 0.06, taper = 0.7 } = {}) {
   tips.forEach((s, i) => {
     dir.subVectors(s.end, s.start).normalize();
     q.setFromUnitVectors(UP, dir);
-    scale.set(0.12, 0.04, 0.2);  // esfera achatada, como tu protocolo propone
+    scale.set(0.12, 0.04, 0.2);  // esfera achatada: aproximación simple de una hoja
     m.compose(s.end, q, scale);
     leaves.setMatrixAt(i, m);
   });
