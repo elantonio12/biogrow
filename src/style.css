@@ -2,7 +2,7 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #0d0e46;
+  background: #0b1020; /* mismo color que el fondo de la escena */
 }
 canvas {
   display: block;
