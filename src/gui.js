@@ -40,6 +40,7 @@ export function createGui(params, actions) {
   fA.add(actions, 'restart').name('↺ Reiniciar crecimiento');
   fA.add(params, 'duration', 2, 60, 1).name('Duración (s)');
   fA.add(params, 'progress', 0, 1, 0.001).name('Progreso').listen().onChange(actions.setProgress);
+  fA.add(params, 'wind', 0, 2, 0.01).name('Viento');
 
   const fI = gui.addFolder('Iluminación');
   fI.add(params, 'model', LIGHT_MODELS).name('Modelo').onChange(actions.updateLight);

@@ -10,7 +10,7 @@
 // =============================================================
 import * as THREE from 'three';
 import { makeRng } from './lsystem.js';
-import { createPhongMaterial } from './lighting.js';
+import { createPhongMaterial, createWindDepthMaterial } from './lighting.js';
 import { createBarkTexture } from './textures.js';
 
 // La textura de corteza se crea una sola vez y la comparten todas las plantas
@@ -53,6 +53,7 @@ export class Plant {
     this.branches = new THREE.InstancedMesh(branchGeo, this.branchMat, n);
     this.branches.frustumCulled = false;
     this.branches.castShadow = true;
+    this.branches.customDepthMaterial = createWindDepthMaterial(uniforms, 0);
 
     this.bBase = new Float32Array(n * 16); // matrices M de cada segmento
     this.bScale = new Float32Array(n * 2); // (radio, longitud)
@@ -94,10 +95,11 @@ export class Plant {
     }
 
     const ln = Math.max(leafList.length, 1);
-    this.leafMat = createPhongMaterial(uniforms, { side: THREE.DoubleSide });
+    this.leafMat = createPhongMaterial(uniforms, { side: THREE.DoubleSide, flutter: 1 });
     this.leaves = new THREE.InstancedMesh(leafGeometry(), this.leafMat, ln);
     this.leaves.frustumCulled = false;
     this.leaves.castShadow = true;
+    this.leaves.customDepthMaterial = createWindDepthMaterial(uniforms, 1);
     this.lBase = new Float32Array(ln * 16);
     this.lSize = new Float32Array(ln);
     this.lBirth = new Float32Array(ln);
@@ -157,6 +159,8 @@ export class Plant {
     this.leaves.geometry.dispose();
     this.branchMat.dispose();
     this.leafMat.dispose();
+    this.branches.customDepthMaterial.dispose();
+    this.leaves.customDepthMaterial.dispose();
     this.branches.dispose();
     this.leaves.dispose();
   }

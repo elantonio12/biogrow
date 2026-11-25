@@ -42,6 +42,7 @@ const params = {
   playing: true,
   duration: 12,
   progress: 0,
+  wind: 0.5,
   // Iluminación
   model: 2,
   azimuth: 35,
@@ -209,6 +210,8 @@ function animate(timestamp) {
     if (growthTime >= plant.totalTime) params.playing = false;
   }
   if (plant) params.progress = growthTime / plant.totalTime;
+  uniforms.uTime.value = timer.getElapsed();
+  uniforms.uWind.value = params.wind;
 
   controls.update();
   renderer.render(scene, camera);

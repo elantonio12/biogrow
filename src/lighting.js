@@ -22,10 +22,36 @@ export function createLightUniforms() {
     uKs:         { value: 0.25 },
     uShininess:  { value: 24 },
     uModel:      { value: 2 },
+    // Viento (animación en el vertex shader)
+    uTime:       { value: 0 },
+    uWind:       { value: 0.5 },
   };
 }
 
+// -------------------------------------------------------------
+//  Viento: desplazamiento en coordenadas del mundo, proporcional al
+//  cuadrado de la altura (la base no se mueve y la copa se mueve más).
+//  Las hojas (uFlutter = 1) además tiemblan con una frecuencia mayor.
+//  Se usa en el shader de color y en el de profundidad (sombras),
+//  para que la sombra se mueva igual que la planta.
+// -------------------------------------------------------------
+const windGLSL = /* glsl */ `
+  uniform float uTime;
+  uniform float uWind;
+  uniform float uFlutter;
+
+  vec3 applyWind(vec3 p) {
+    float h = max(p.y, 0.0);
+    float sway = uWind * h * h * 0.015;
+    p.x += sway * sin(uTime * 1.7 + p.y * 0.6 + p.z * 0.3);
+    p.z += sway * 0.6 * cos(uTime * 1.3 + p.y * 0.5 + p.x * 0.3);
+    p += uFlutter * uWind * 0.03 * sin(uTime * 7.0 + dot(p, vec3(3.1, 2.3, 1.7)));
+    return p;
+  }
+`;
+
 const vertexShader = /* glsl */ `
+  ${windGLSL}
   varying vec3 vNormalW;
   varying vec3 vPosW;
   varying vec3 vColor;
@@ -39,6 +65,7 @@ const vertexShader = /* glsl */ `
     #endif
     mat4 world = modelMatrix * inst;
     vec4 wp = world * vec4(position, 1.0);
+    wp.xyz = applyWind(wp.xyz);
     vPosW = wp.xyz;
 
     // Las normales se transforman con la inversa transpuesta
@@ -97,10 +124,13 @@ const fragmentShader = /* glsl */ `
 
 // Las uniformes de la luz se comparten entre materiales (mismo objeto),
 // así que mover el sol actualiza todo. La textura es propia de cada material.
-export function createPhongMaterial(uniforms, { side = THREE.FrontSide, map = null, mapRepeat = [1, 1] } = {}) {
+export function createPhongMaterial(uniforms, {
+  side = THREE.FrontSide, map = null, mapRepeat = [1, 1], flutter = 0,
+} = {}) {
   return new THREE.ShaderMaterial({
     uniforms: {
       ...uniforms,
+      uFlutter: { value: flutter },
       uMap: { value: map },
       uUseMap: { value: map ? 1 : 0 },
       uMapRepeat: { value: new THREE.Vector2(...mapRepeat) },
@@ -109,4 +139,28 @@ export function createPhongMaterial(uniforms, { side = THREE.FrontSide, map = nu
     fragmentShader,
     side,
   });
+}
+
+// Material de profundidad para el mapa de sombras con el mismo viento.
+// Se parte del MeshDepthMaterial de Three.js y se reemplaza el paso que
+// proyecta el vértice para insertar applyWind() en coordenadas del mundo.
+export function createWindDepthMaterial(uniforms, flutter = 0) {
+  const material = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = uniforms.uTime;
+    shader.uniforms.uWind = uniforms.uWind;
+    shader.uniforms.uFlutter = { value: flutter };
+    shader.vertexShader = windGLSL + shader.vertexShader.replace(
+      '#include <project_vertex>',
+      `vec4 mvPosition = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+        mvPosition = instanceMatrix * mvPosition;
+      #endif
+      mvPosition = modelMatrix * mvPosition;
+      mvPosition.xyz = applyWind(mvPosition.xyz);
+      mvPosition = viewMatrix * mvPosition;
+      gl_Position = projectionMatrix * mvPosition;`
+    );
+  };
+  return material;
 }
