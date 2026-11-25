@@ -1,55 +1,65 @@
-import GUI from 'lil-gui';
+// =============================================================
+//  Panel de parámetros (lil-gui). Modifica directamente `params`
+//  y llama a las acciones de main.js cuando algo cambia.
+// =============================================================
+import GUI from 'three/addons/libs/lil-gui.module.min.js';
 import { SPECIES } from './species.js';
+import { LIGHT_MODELS } from './lighting.js';
 
-// Panel de control para modificar la planta en vivo.
-// `params` es el objeto de parámetros de main.js; lil-gui lo modifica directamente.
-// `actions` contiene las funciones que el panel puede ejecutar.
+// actions: { changeSpecies, regenerate(opts), newSeed, frame,
+//            togglePlay, restart, setProgress(v), updateLight }
 export function createGui(params, actions) {
-  const gui = new GUI({ title: 'BioGrow' });
+  const gui = new GUI({ title: 'BioGrow 3D' });
+  const regen = () => actions.regenerate();
 
-  // Opciones del menú: { 'Nombre visible': 'clave' }
-  const speciesOptions = Object.fromEntries(
-    Object.entries(SPECIES).map(([key, sp]) => [sp.name, key])
-  );
+  gui.add(params, 'species', Object.keys(SPECIES)).name('Especie').onChange(actions.changeSpecies);
 
-  const plantFolder = gui.addFolder('Sistema-L');
-  plantFolder
-    .add(params, 'species', speciesOptions)
-    .name('Especie')
-    .onChange(() => {
-      actions.loadSpeciesDefaults();
-      setMaxIterations(SPECIES[params.species].maxIterations);
-      refresh();
-      actions.regenerate();
-    });
+  const fL = gui.addFolder('Sistema-L');
+  const iterCtrl = fL.add(params, 'iterations', 0, SPECIES[params.species].maxIterations, 1)
+    .name('Iteraciones').onChange(regen);
+  fL.add(params, 'angle', 0, 90, 0.5).name('Ángulo de ramificación (°)').onChange(regen);
+  fL.add(params, 'branchProb', 0, 1, 0.01).name('Prob. de ramificación').onChange(regen);
+  fL.add(params, 'jitter', 0, 20, 0.5).name('Variación angular (°)').onChange(regen);
+  fL.add(params, 'tropism', -0.4, 0.4, 0.01).name('Tropismo (↑ luz / ↓ peso)').onChange(regen);
+  fL.add(params, 'seed', 1, 9999, 1).name('Semilla').onChange(regen);
+  fL.add(actions, 'newSeed').name('🎲 Nueva semilla');
 
-  const iterationsCtrl = plantFolder
-    .add(params, 'iterations', 1, SPECIES[params.species].maxIterations, 1)
-    .name('Iteraciones')
-    .onFinishChange(actions.regenerate);
+  const fG = gui.addFolder('Geometría');
+  fG.add(params, 'length', 0.5, 10, 0.1).name('Longitud de segmento').onChange(regen);
+  fG.add(params, 'normalize').name('Normalizar con iteraciones')
+    .onChange(() => actions.regenerate({ frame: true }));
+  fG.add(params, 'shrink', 0.4, 1, 0.01).name('Escala de ramas hijas').onChange(regen);
+  fG.add(params, 'radius', 0.01, 0.3, 0.005).name('Grosor del tronco').onChange(regen);
+  fG.add(params, 'taper', 0, 0.8, 0.01).name('Adelgazamiento').onChange(regen);
+  fG.add(params, 'showLeaves').name('Mostrar hojas').onChange(regen);
+  fG.add(params, 'leafSize', 0.02, 0.6, 0.01).name('Tamaño de hoja').onChange(regen);
+  fG.add(actions, 'frame').name('🎥 Encuadrar cámara');
 
-  plantFolder.add(params, 'angle', 5, 60, 0.5).name('Ángulo (°)').onFinishChange(actions.regenerate);
-  plantFolder.add(params, 'seed', 1, 99999, 1).name('Semilla').onFinishChange(actions.regenerate);
-  plantFolder.add(actions, 'newSeed').name('Nueva semilla (N)');
+  const fA = gui.addFolder('Animación');
+  fA.add(actions, 'togglePlay').name('⏯ Reproducir / Pausar');
+  fA.add(actions, 'restart').name('↺ Reiniciar crecimiento');
+  fA.add(params, 'duration', 2, 60, 1).name('Duración (s)');
+  fA.add(params, 'progress', 0, 1, 0.001).name('Progreso').listen().onChange(actions.setProgress);
 
-  const growthFolder = gui.addFolder('Crecimiento');
-  growthFolder.add(params, 'growthDuration', 2, 40, 1).name('Duración (s)');
-  growthFolder.add(actions, 'restartGrowth').name('Reiniciar (R)');
-  growthFolder.add(actions, 'growInstantly').name('Crecer al instante');
+  const fI = gui.addFolder('Iluminación');
+  fI.add(params, 'model', LIGHT_MODELS).name('Modelo').onChange(actions.updateLight);
+  fI.add(params, 'azimuth', 0, 360, 1).name('Azimut del sol (°)').onChange(actions.updateLight);
+  fI.add(params, 'elevation', 5, 90, 1).name('Elevación del sol (°)').onChange(actions.updateLight);
+  fI.add(params, 'ka', 0, 1, 0.01).name('ka (ambiente)').onChange(actions.updateLight);
+  fI.add(params, 'kd', 0, 2, 0.01).name('kd (difusa)').onChange(actions.updateLight);
+  fI.add(params, 'ks', 0, 1, 0.01).name('ks (especular)').onChange(actions.updateLight);
+  fI.add(params, 'shininess', 1, 128, 1).name('n (brillo)').onChange(actions.updateLight);
+  fI.add(params, 'shadows').name('Sombras en el piso').onChange(actions.updateLight);
+  fI.close();
 
-  const sceneFolder = gui.addFolder('Iluminación');
-  sceneFolder.add(params, 'shadows').name('Sombras').onChange(actions.updateLighting);
-  sceneFolder.add(params, 'sunAzimuth', 0, 360, 1).name('Sol: azimut (°)').onChange(actions.updateLighting);
-  sceneFolder.add(params, 'sunElevation', 5, 90, 1).name('Sol: elevación (°)').onChange(actions.updateLighting);
-
-  // Vuelve a dibujar los valores cuando cambian desde el teclado
+  // Vuelve a dibujar los valores cuando cambian por código
   function refresh() {
     gui.controllersRecursive().forEach((c) => c.updateDisplay());
   }
 
-  // Cada especie tiene su propio límite de iteraciones (para no saturar la GPU)
+  // Cada especie tiene su propio límite de iteraciones
   function setMaxIterations(max) {
-    iterationsCtrl.max(max);
+    iterCtrl.max(max);
   }
 
   return { gui, refresh, setMaxIterations };

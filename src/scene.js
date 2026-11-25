@@ -1,87 +1,65 @@
+// =============================================================
+//  Escena base: cámara, renderizador, luces, piso y utilidades
+//  para encuadrar la cámara y ajustar la cámara de sombras.
+// =============================================================
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { createGrassTexture } from './textures.js';
 
-const SKY_COLOR = 0xa9c9e2;
-const SUN_DISTANCE = 10;
+const SKY_COLOR = 0xe8f0f5;
 
-// Crea los elementos base de la escena: renderizador, cámara, controles,
-// luces, sombras y piso. Devuelve todo en un objeto para que main.js lo use.
 export function createScene(container = document.body) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SKY_COLOR);
-  // Niebla lineal del mismo color que el cielo: el borde del piso se
-  // desvanece y no se nota dónde termina
-  scene.fog = new THREE.Fog(SKY_COLOR, 12, 30);
+  scene.fog = new THREE.Fog(SKY_COLOR, 18, 45);
 
   // Cámara con proyección en perspectiva
-  const camera = new THREE.PerspectiveCamera(
-    60,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-  );
-  camera.position.set(3.5, 2.6, 4.8);
+  const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.05, 200);
+  camera.position.set(5, 3.5, 7);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; // colores menos "quemados"
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap; // filtrado PCF: bordes de sombra suavizados
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   container.appendChild(renderer.domElement);
 
-  // Cámara orbital: rotar, acercar y desplazar con el mouse
+  // Cámara orbital (rotar, zoom, desplazar)
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.target.set(0, 1.5, 0);
-  controls.maxPolarAngle = Math.PI * 0.49; // no dejar que la cámara baje del piso
-  controls.maxDistance = 15;
+  controls.target.set(0, 2, 0);
 
-  // Luz hemisférica: color del cielo desde arriba y del pasto desde abajo.
-  // Es una luz ambiental más realista que AmbientLight.
-  const hemi = new THREE.HemisphereLight(SKY_COLOR, 0x3b5a2e, 1.2);
-  scene.add(hemi);
-
-  // Sol: luz direccional que proyecta sombras (shadow mapping)
-  const sun = new THREE.DirectionalLight(0xfff2d6, 2.5);
+  // Luz direccional (el "sol"). La misma dirección alimenta al shader
+  // Phong propio de la planta y a la luz de Three.js del piso.
+  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  // Volumen ortográfico de la "cámara de sombras": solo lo que hay alrededor de la planta
-  const shadowCam = sun.shadow.camera;
-  shadowCam.left = -4;
-  shadowCam.right = 4;
-  shadowCam.top = 6;
-  shadowCam.bottom = -2;
-  shadowCam.near = 1;
-  shadowCam.far = 25;
-  sun.shadow.bias = -0.0005; // evita el "shadow acne" (rayas sobre las superficies)
-  sun.shadow.normalBias = 0.02;
-  scene.add(sun);
+  sun.shadow.bias = -0.0005;
+  scene.add(sun, sun.target);
+  scene.add(new THREE.HemisphereLight(0xdfefff, 0x8a7a5a, 0.9));
 
-  // Coloca el sol según su azimut y elevación (en grados)
-  function setSunAngle(azimuth, elevation) {
-    const az = THREE.MathUtils.degToRad(azimuth);
-    const el = THREE.MathUtils.degToRad(elevation);
-    sun.position.set(
-      SUN_DISTANCE * Math.cos(el) * Math.cos(az),
-      SUN_DISTANCE * Math.sin(el),
-      SUN_DISTANCE * Math.cos(el) * Math.sin(az)
-    );
-  }
-
-  function setShadows(enabled) {
-    sun.castShadow = enabled;
-  }
+  // Marcador visual del sol
+  const sunMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 16, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffc94d })
+  );
+  scene.add(sunMarker);
 
   // Piso
   const ground = new THREE.Mesh(
-    new THREE.CircleGeometry(30, 64),
-    new THREE.MeshStandardMaterial({ map: createGrassTexture(40), roughness: 1 })
+    new THREE.CircleGeometry(14, 64),
+    new THREE.MeshStandardMaterial({ color: 0xb9c99a, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
+  const soil = new THREE.Mesh(
+    new THREE.CircleGeometry(0.9, 32),
+    new THREE.MeshStandardMaterial({ color: 0x6b5139, roughness: 1 })
+  );
+  soil.rotation.x = -Math.PI / 2;
+  soil.position.y = 0.002;
+  soil.receiveShadow = true;
+  scene.add(soil);
 
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -89,5 +67,36 @@ export function createScene(container = document.body) {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  return { scene, camera, renderer, controls, sun, ground, setSunAngle, setShadows };
+  return { scene, camera, renderer, controls, sun, sunMarker, ground, soil };
+}
+
+// Coloca la cámara para que la caja `box` quepa completa en pantalla
+export function frameCamera({ camera, controls, scene }, box) {
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = Math.max(size.x, size.y, size.z) * 0.5 + 0.5;
+  const dist = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05;
+  controls.target.copy(center);
+  const dir = new THREE.Vector3(0.55, 0.3, 0.78).normalize();
+  camera.position.copy(center).addScaledVector(dir, dist);
+  camera.near = dist / 100;
+  camera.far = dist * 10;
+  camera.updateProjectionMatrix();
+  scene.fog.near = dist * 1.5;
+  scene.fog.far = dist * 5;
+}
+
+// Ajusta el volumen ortográfico de la cámara de sombras a la planta
+// y coloca el sol (y su marcador) en la dirección `lightDir`.
+export function fitShadowCamera({ sun, sunMarker }, box, lightDir) {
+  const center = box.getCenter(new THREE.Vector3());
+  const r = box.getSize(new THREE.Vector3()).length() * 0.5 + 1;
+  sun.target.position.copy(center);
+  sun.position.copy(center).addScaledVector(lightDir, r * 2);
+  const cam = sun.shadow.camera;
+  cam.left = -r * 1.6; cam.right = r * 1.6; cam.top = r * 1.6; cam.bottom = -r * 1.6;
+  cam.near = 0.1; cam.far = r * 5;
+  cam.updateProjectionMatrix();
+  sunMarker.position.copy(center).addScaledVector(lightDir, r * 1.3);
+  sunMarker.scale.setScalar(r * 0.06);
 }
