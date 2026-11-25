@@ -112,6 +112,7 @@ function generate({ keepProgress = true, frame = false } = {}) {
   fitShadowCamera(world, plant.box, uniforms.uLightDir.value);
   if (frame) frameCamera(world, plant.box);
   pollen.setBounds(plant.box);
+  uniforms.uHeight.value = Math.max(plant.box.max.y, 0.5);
 
   updateInfo(sp, {
     str, segLen, ms: performance.now() - t0, iterations: params.iterations,

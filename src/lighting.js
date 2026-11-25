@@ -25,27 +25,33 @@ export function createLightUniforms() {
     // Viento (animación en el vertex shader)
     uTime:       { value: 0 },
     uWind:       { value: 0.5 },
+    uHeight:     { value: 4 },   // altura de la planta actual
   };
 }
 
 // -------------------------------------------------------------
 //  Viento: desplazamiento en coordenadas del mundo, proporcional al
-//  cuadrado de la altura (la base no se mueve y la copa se mueve más).
-//  Las hojas (uFlutter = 1) además tiemblan con una frecuencia mayor.
+//  cuadrado de la altura relativa (la base no se mueve y la copa se
+//  mueve más). La amplitud es un porcentaje de la altura de la planta
+//  (uHeight), así se ve igual en plantas chicas y grandes.
+//  Las hojas (uFlutter = 1) además tiemblan con una frecuencia mayor;
+//  la frecuencia espacial es baja para que cada hoja se mueva completa
+//  y no se deforme.
 //  Se usa en el shader de color y en el de profundidad (sombras),
 //  para que la sombra se mueva igual que la planta.
 // -------------------------------------------------------------
 const windGLSL = /* glsl */ `
   uniform float uTime;
   uniform float uWind;
+  uniform float uHeight;
   uniform float uFlutter;
 
   vec3 applyWind(vec3 p) {
-    float h = max(p.y, 0.0);
-    float sway = uWind * h * h * 0.015;
-    p.x += sway * sin(uTime * 1.7 + p.y * 0.6 + p.z * 0.3);
-    p.z += sway * 0.6 * cos(uTime * 1.3 + p.y * 0.5 + p.x * 0.3);
-    p += uFlutter * uWind * 0.03 * sin(uTime * 7.0 + dot(p, vec3(3.1, 2.3, 1.7)));
+    float h = clamp(p.y / uHeight, 0.0, 1.5);
+    float sway = uWind * 0.04 * uHeight * h * h;
+    p.x += sway * sin(uTime * 1.7 + h * 2.0 + p.z * 0.2);
+    p.z += sway * 0.5 * cos(uTime * 1.3 + h * 1.5 + p.x * 0.2);
+    p += uFlutter * uWind * 0.006 * uHeight * sin(uTime * 6.0 + dot(p, vec3(0.9, 0.7, 0.8)));
     return p;
   }
 `;
@@ -149,6 +155,7 @@ export function createWindDepthMaterial(uniforms, flutter = 0) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = uniforms.uTime;
     shader.uniforms.uWind = uniforms.uWind;
+    shader.uniforms.uHeight = uniforms.uHeight;
     shader.uniforms.uFlutter = { value: flutter };
     shader.vertexShader = windGLSL + shader.vertexShader.replace(
       '#include <project_vertex>',
