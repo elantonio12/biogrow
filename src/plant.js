@@ -1,6 +1,15 @@
 import * as THREE from 'three';
+import { createBarkTextures } from './textures.js';
+import { makeRng } from './lsystem.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
+
+// Las texturas se crean una sola vez y se reutilizan entre plantas
+let barkTextures = null;
+function getBarkTextures() {
+  if (!barkTextures) barkTextures = createBarkTextures();
+  return barkTextures;
+}
 
 // Escala los segmentos para que la planta mida exactamente `targetHeight`.
 // Así cualquier especie o número de iteraciones cabe en la escena.
@@ -26,7 +35,13 @@ export function buildPlant(segments, { radius = 0.06, taper = 0.7, leafSize = 0.
   // InstancedMesh dibuja miles de cilindros en una sola llamada a la GPU.
   const branchGeo = new THREE.CylinderGeometry(1, 1, 1, 6);
   branchGeo.translate(0, 0.5, 0); // la base del cilindro queda en el origen
-  const branchMat = new THREE.MeshStandardMaterial({ color: 0x6d4c2f });
+  const bark = getBarkTextures();
+  const branchMat = new THREE.MeshStandardMaterial({
+    map: bark.map,
+    bumpMap: bark.bumpMap,
+    bumpScale: 2,
+    roughness: 0.95,
+  });
   const branches = new THREE.InstancedMesh(branchGeo, branchMat, Math.max(segments.length, 1));
 
   // Datos de cada rama para poder recalcular su matriz durante el crecimiento
@@ -61,11 +76,14 @@ export function buildPlant(segments, { radius = 0.06, taper = 0.7, leafSize = 0.
   });
 
   const leafGeo = new THREE.SphereGeometry(1, 8, 6);
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x4caf50 });
+  // El color real de cada hoja viene de instanceColor (se multiplica por el blanco)
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
   const leaves = new THREE.InstancedMesh(leafGeo, leafMat, Math.max(leafSegments.length, 1));
 
   const leafQuat = new THREE.Quaternion();
   const leafDir = new THREE.Vector3();
+  const leafColor = new THREE.Color();
+  const colorRng = makeRng(42);
   leafSegments.forEach((segIndex, i) => {
     const s = segments[segIndex];
     leafDir.subVectors(s.end, s.start).normalize();
@@ -74,6 +92,9 @@ export function buildPlant(segments, { radius = 0.06, taper = 0.7, leafSize = 0.
     scale.set(leafSize * 0.6, leafSize * 0.2, leafSize);
     m.compose(s.end, leafQuat, scale);
     leaves.setMatrixAt(i, m);
+    // Pequeña variación de tono y brillo para que no todas las hojas sean iguales
+    leafColor.setHSL(0.27 + (colorRng() - 0.5) * 0.06, 0.55, 0.32 + colorRng() * 0.12);
+    leaves.setColorAt(i, leafColor);
   });
   leaves.castShadow = true;
   leaves.receiveShadow = true;

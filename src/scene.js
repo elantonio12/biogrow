@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createGrassTexture } from './textures.js';
 
 const SKY_COLOR = 0xa9c9e2;
 const SUN_DISTANCE = 10;
@@ -76,7 +77,7 @@ export function createScene(container = document.body) {
   // Piso
   const ground = new THREE.Mesh(
     new THREE.CircleGeometry(30, 64),
-    new THREE.MeshStandardMaterial({ color: 0x4a7a3a, roughness: 1 })
+    new THREE.MeshStandardMaterial({ map: createGrassTexture(40), roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
