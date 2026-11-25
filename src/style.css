@@ -2,8 +2,80 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #0d0e46;
+  background: #e8f0f5;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
-canvas {
-  display: block;
+canvas { display: block; }
+
+/* ---------- Panel de información ---------- */
+#info {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  width: 300px;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(46, 125, 50, 0.18);
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(30, 60, 30, 0.12);
+  color: #23331f;
+  font-size: 12.5px;
+}
+#info h1 { margin: 0; font-size: 18px; color: #2e7d32; letter-spacing: 0.3px; }
+#info .sub { margin: 2px 0 10px; color: #6b7a66; }
+#info code {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  background: #eef4ea;
+  border-radius: 5px;
+  padding: 2px 6px;
+  word-break: break-all;
+}
+#info .row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+#info .row span { color: #6b7a66; }
+#info .rules { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+#info .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+#info .stats div { background: #f3f7f0; border-radius: 8px; padding: 6px 4px; text-align: center; }
+#info .stats b { display: block; font-size: 13px; color: #2e7d32; }
+#info .stats span { font-size: 10px; color: #6b7a66; }
+#info details { margin-bottom: 6px; }
+#info summary { cursor: pointer; color: #4a5a45; }
+#info .str { display: block; margin-top: 4px; line-height: 1.5; }
+#info .muted { color: #8a9685; font-size: 11px; }
+#info .keys { margin: 8px 0 0; color: #6b7a66; font-size: 11px; }
+kbd {
+  background: #fff; border: 1px solid #cfd8ca; border-bottom-width: 2px;
+  border-radius: 4px; padding: 0 5px; font-size: 10.5px;
+}
+
+#error {
+  display: none;
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  background: #fff3f0; color: #b23a1e; border: 1px solid #f2c4b8;
+  padding: 8px 14px; border-radius: 8px; font-size: 13px;
+}
+
+/* ---------- lil-gui en tema claro ---------- */
+.lil-gui {
+  --background-color: rgba(255, 255, 255, 0.92);
+  --text-color: #23331f;
+  --title-background-color: #e6efe1;
+  --title-text-color: #1f4d22;
+  --widget-color: #e8eee5;
+  --hover-color: #dbe5d6;
+  --focus-color: #cfdcc9;
+  --number-color: #2e7d32;
+  --string-color: #2e7d32;
+  --font-size: 12px;
+  --widget-height: 22px;
+  --name-width: 48%;
+}
+.lil-gui.root {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(30, 60, 30, 0.12);
+  width: 300px;
 }
