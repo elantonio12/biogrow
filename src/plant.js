@@ -1,140 +1,164 @@
+// =============================================================
+//  Modelado 3D de la planta (Unidad II) + animación de crecimiento
+//  (Unidad III, tema 3.3).
+//
+//  Ramas: un cilindro por segmento (InstancedMesh → una sola llamada
+//  de dibujo para miles de cilindros).  Hojas: plano con forma de hoja.
+//
+//  Matriz de cada rama:  M_segmento · S(r·g, l·g, r·g)
+//  donde g ∈ [0,1] es el factor de crecimiento interpolado en el tiempo.
+// =============================================================
 import * as THREE from 'three';
-import { createBarkTextures } from './textures.js';
 import { makeRng } from './lsystem.js';
+import { createPhongMaterial } from './lighting.js';
 
-const UP = new THREE.Vector3(0, 1, 0);
+// Interpolación suave (ease-in-out)
+const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
-// Las texturas se crean una sola vez y se reutilizan entre plantas
-let barkTextures = null;
-function getBarkTextures() {
-  if (!barkTextures) barkTextures = createBarkTextures();
-  return barkTextures;
+function leafGeometry() {
+  const s = new THREE.Shape();
+  s.moveTo(0, 0);
+  s.quadraticCurveTo(0.45, 0.35, 0, 1);
+  s.quadraticCurveTo(-0.45, 0.35, 0, 0);
+  return new THREE.ShapeGeometry(s, 8); // plano XY, apunta a +Y, normal +Z
 }
 
-// Escala los segmentos para que la planta mida exactamente `targetHeight`.
-// Así cualquier especie o número de iteraciones cabe en la escena.
-export function fitToHeight(segments, targetHeight) {
-  let maxY = 0;
-  for (const s of segments) maxY = Math.max(maxY, s.start.y, s.end.y);
-  if (maxY === 0) return segments;
-  const k = targetHeight / maxY;
-  for (const s of segments) {
-    s.start.multiplyScalar(k);
-    s.end.multiplyScalar(k);
+export class Plant {
+  constructor({ segments, leaves: explicitLeaves }, opts, uniforms) {
+    const {
+      radius = 0.06, taper = 0.4, minRadius = 0.004,
+      leafSize = 0.2, leavesPerTip = 1, showLeaves = true,
+      bark = 0x6d4c2f, twig = 0x8a6a3f, leaf = 0x4caf50, seed = 1,
+    } = opts;
+    const rng = makeRng(seed * 31 + 7);
+
+    this.group = new THREE.Group();
+    this.segmentCount = segments.length;
+
+    const maxDepth = segments.reduce((m, s) => Math.max(m, s.depth), 0);
+    const rootTips = segments.reduce((m, s) => Math.max(m, s.tips), 1);
+    let maxBirth = 0;
+
+    // ---------- RAMAS ----------
+    const n = Math.max(segments.length, 1);
+    const branchGeo = new THREE.CylinderGeometry(0.85, 1, 1, 7);
+    branchGeo.translate(0, 0.5, 0); // la base del cilindro queda en el origen
+    this.branchMat = createPhongMaterial(uniforms);
+    this.branches = new THREE.InstancedMesh(branchGeo, this.branchMat, n);
+    this.branches.frustumCulled = false;
+    this.branches.castShadow = true;
+
+    this.bBase = new Float32Array(n * 16); // matrices M de cada segmento
+    this.bScale = new Float32Array(n * 2); // (radio, longitud)
+    this.bBirth = new Float32Array(n);
+    const cBark = new THREE.Color(bark), cTwig = new THREE.Color(twig), col = new THREE.Color();
+
+    segments.forEach((s, i) => {
+      s.matrix.toArray(this.bBase, i * 16);
+      // Modelo de tubería (Leonardo / pipe model): r ∝ (puntas que sostiene)^taper
+      this.bScale[i * 2] = Math.max(radius * Math.pow(s.tips / rootTips, taper), minRadius);
+      this.bScale[i * 2 + 1] = s.len;
+      this.bBirth[i] = s.birth;
+      maxBirth = Math.max(maxBirth, s.birth + 1);
+      col.copy(cBark).lerp(cTwig, 1 - Math.pow(s.tips / rootTips, 0.3));
+      this.branches.setColorAt(i, col);
+    });
+    if (segments.length === 0) this.branches.count = 0;
+    this.group.add(this.branches);
+
+    // ---------- HOJAS ----------
+    // Puntas de rama (tip) o símbolo L explícito de la gramática.
+    const leafList = [];
+    const T = new THREE.Matrix4(), Ry = new THREE.Matrix4(), Rx = new THREE.Matrix4();
+    const addLeaf = (base, birth) => {
+      const m = base.clone()
+        .multiply(Ry.makeRotationY(rng() * Math.PI * 2))        // giro alrededor de la rama
+        .multiply(Rx.makeRotationX(0.6 + rng() * 0.5));          // separación de la rama
+      leafList.push({ m, birth, size: leafSize * (0.75 + rng() * 0.5) });
+    };
+    if (showLeaves) {
+      for (const l of explicitLeaves) addLeaf(l.matrix, l.birth);
+      if (leavesPerTip > 0) {
+        for (const s of segments) {
+          if (!s.tip) continue;
+          const end = s.matrix.clone().multiply(T.makeTranslation(0, s.len, 0));
+          for (let k = 0; k < leavesPerTip; k++) addLeaf(end, s.birth + 1);
+        }
+      }
+    }
+
+    const ln = Math.max(leafList.length, 1);
+    this.leafMat = createPhongMaterial(uniforms, { side: THREE.DoubleSide });
+    this.leaves = new THREE.InstancedMesh(leafGeometry(), this.leafMat, ln);
+    this.leaves.frustumCulled = false;
+    this.leaves.castShadow = true;
+    this.lBase = new Float32Array(ln * 16);
+    this.lSize = new Float32Array(ln);
+    this.lBirth = new Float32Array(ln);
+    const cLeaf = new THREE.Color(leaf), hsl = {};
+    cLeaf.getHSL(hsl);
+    leafList.forEach((l, i) => {
+      l.m.toArray(this.lBase, i * 16);
+      this.lSize[i] = l.size;
+      this.lBirth[i] = l.birth + rng() * 0.8;
+      maxBirth = Math.max(maxBirth, this.lBirth[i] + 1);
+      col.setHSL(hsl.h + (rng() - 0.5) * 0.05, hsl.s, hsl.l * (0.8 + rng() * 0.4));
+      this.leaves.setColorAt(i, col);
+    });
+    this.leafCount = leafList.length;
+    this.leaves.count = leafList.length;
+    this.group.add(this.leaves);
+
+    this.totalTime = Math.max(maxBirth, 1); // en "pasos" de crecimiento
+
+    // Caja envolvente de la planta completa (para cámara y sombras)
+    this.box = new THREE.Box3();
+    const p = new THREE.Vector3(), M = new THREE.Matrix4();
+    segments.forEach((s) => {
+      this.box.expandByPoint(p.setFromMatrixPosition(s.matrix));
+      M.copy(s.matrix).multiply(T.makeTranslation(0, s.len, 0));
+      this.box.expandByPoint(p.setFromMatrixPosition(M));
+    });
+    if (this.box.isEmpty()) this.box.set(new THREE.Vector3(-1, 0, -1), new THREE.Vector3(1, 1, 1));
+    this.box.expandByScalar(leafSize);
+
+    this.setTime(this.totalTime);
   }
-  return segments;
+
+  // t ∈ [0, totalTime]. Cada segmento crece entre birth y birth+1.
+  // Se escribe directamente M·S en el buffer: multiplicar por una matriz
+  // de escala diagonal equivale a escalar las columnas 0, 1 y 2 de M.
+  setTime(t) {
+    const b = this.branches.instanceMatrix.array;
+    for (let i = 0; i < this.segmentCount; i++) {
+      const g = smooth(t - this.bBirth[i]);
+      const r = this.bScale[i * 2] * (0.25 + 0.75 * g) * (g > 0 ? 1 : 0);
+      const l = this.bScale[i * 2 + 1] * g;
+      writeScaled(b, this.bBase, i * 16, r, l, r);
+    }
+    this.branches.instanceMatrix.needsUpdate = true;
+
+    const a = this.leaves.instanceMatrix.array;
+    for (let i = 0; i < this.leafCount; i++) {
+      const s = this.lSize[i] * smooth(t - this.lBirth[i]);
+      writeScaled(a, this.lBase, i * 16, s, s, s);
+    }
+    this.leaves.instanceMatrix.needsUpdate = true;
+  }
+
+  dispose() {
+    this.branches.geometry.dispose();
+    this.leaves.geometry.dispose();
+    this.branchMat.dispose();
+    this.leafMat.dispose();
+    this.branches.dispose();
+    this.leaves.dispose();
+  }
 }
 
-// Convierte la lista de segmentos en mallas 3D (ramas + hojas).
-// Los segmentos deben venir ordenados en el orden en que deben crecer.
-// Devuelve el grupo y una función setGrowth(t) con t en [0, 1].
-export function buildPlant(segments, { radius = 0.06, taper = 0.7, leafSize = 0.15 } = {}) {
-  const group = new THREE.Group();
-
-  // --- RAMAS: un cilindro por segmento, con InstancedMesh ---
-  // InstancedMesh dibuja miles de cilindros en una sola llamada a la GPU.
-  const branchGeo = new THREE.CylinderGeometry(1, 1, 1, 6);
-  branchGeo.translate(0, 0.5, 0); // la base del cilindro queda en el origen
-  const bark = getBarkTextures();
-  const branchMat = new THREE.MeshStandardMaterial({
-    map: bark.map,
-    bumpMap: bark.bumpMap,
-    bumpScale: 2,
-    roughness: 0.95,
-  });
-  const branches = new THREE.InstancedMesh(branchGeo, branchMat, Math.max(segments.length, 1));
-
-  // Datos de cada rama para poder recalcular su matriz durante el crecimiento
-  const branchData = segments.map((s) => {
-    const dir = new THREE.Vector3().subVectors(s.end, s.start);
-    const length = dir.length();
-    const quat = new THREE.Quaternion().setFromUnitVectors(UP, dir.normalize());
-    const r = radius * Math.pow(taper, s.depth); // más delgado en ramas profundas
-    return { start: s.start, quat, length, r };
-  });
-
-  const m = new THREE.Matrix4();
-  const scale = new THREE.Vector3();
-
-  // Matriz de la rama i: traslación + rotación + escala.
-  // `fraction` permite dibujar una rama a medio crecer.
-  const setBranchMatrix = (i, fraction = 1) => {
-    const b = branchData[i];
-    scale.set(b.r, b.length * fraction, b.r);
-    m.compose(b.start, b.quat, scale);
-    branches.setMatrixAt(i, m);
-  };
-  branchData.forEach((_, i) => setBranchMatrix(i));
-  branches.castShadow = true;
-  branches.receiveShadow = true;
-  group.add(branches);
-
-  // --- HOJAS: en la punta de cada rama (segmentos marcados como tip) ---
-  const leafSegments = [];
-  segments.forEach((s, i) => {
-    if (s.tip) leafSegments.push(i);
-  });
-
-  const leafGeo = new THREE.SphereGeometry(1, 8, 6);
-  // El color real de cada hoja viene de instanceColor (se multiplica por el blanco)
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
-  const leaves = new THREE.InstancedMesh(leafGeo, leafMat, Math.max(leafSegments.length, 1));
-
-  const leafQuat = new THREE.Quaternion();
-  const leafDir = new THREE.Vector3();
-  const leafColor = new THREE.Color();
-  const colorRng = makeRng(42);
-  leafSegments.forEach((segIndex, i) => {
-    const s = segments[segIndex];
-    leafDir.subVectors(s.end, s.start).normalize();
-    leafQuat.setFromUnitVectors(UP, leafDir);
-    // esfera achatada: aproximación simple de una hoja
-    scale.set(leafSize * 0.6, leafSize * 0.2, leafSize);
-    m.compose(s.end, leafQuat, scale);
-    leaves.setMatrixAt(i, m);
-    // Pequeña variación de tono y brillo para que no todas las hojas sean iguales
-    leafColor.setHSL(0.27 + (colorRng() - 0.5) * 0.06, 0.55, 0.32 + colorRng() * 0.12);
-    leaves.setColorAt(i, leafColor);
-  });
-  leaves.castShadow = true;
-  leaves.receiveShadow = true;
-  group.add(leaves);
-
-  // Crecimiento: solo se dibujan las primeras `visible` instancias.
-  // La rama que está creciendo se dibuja parcialmente para que el
-  // crecimiento se vea continuo y no "a saltos".
-  let lastGrowing = -1;
-  function setGrowth(t) {
-    const exact = THREE.MathUtils.clamp(t, 0, 1) * segments.length;
-    const complete = Math.floor(exact);
-
-    if (lastGrowing >= 0 && lastGrowing < segments.length) setBranchMatrix(lastGrowing, 1);
-    if (complete < segments.length) {
-      setBranchMatrix(complete, exact - complete);
-      branches.count = complete + 1;
-      lastGrowing = complete;
-    } else {
-      branches.count = segments.length;
-      lastGrowing = -1;
-    }
-    branches.instanceMatrix.needsUpdate = true;
-
-    // Una hoja aparece cuando su rama terminó de crecer
-    let visibleLeaves = 0;
-    while (visibleLeaves < leafSegments.length && leafSegments[visibleLeaves] < complete) {
-      visibleLeaves++;
-    }
-    leaves.count = visibleLeaves;
-  }
-
-  function dispose() {
-    branchGeo.dispose();
-    branchMat.dispose();
-    leafGeo.dispose();
-    leafMat.dispose();
-    branches.dispose();
-    leaves.dispose();
-  }
-
-  return { group, branches, leaves, setGrowth, dispose };
+function writeScaled(dst, src, o, sx, sy, sz) {
+  dst[o] = src[o] * sx;           dst[o + 1] = src[o + 1] * sx;   dst[o + 2] = src[o + 2] * sx;   dst[o + 3] = src[o + 3];
+  dst[o + 4] = src[o + 4] * sy;   dst[o + 5] = src[o + 5] * sy;   dst[o + 6] = src[o + 6] * sy;   dst[o + 7] = src[o + 7];
+  dst[o + 8] = src[o + 8] * sz;   dst[o + 9] = src[o + 9] * sz;   dst[o + 10] = src[o + 10] * sz; dst[o + 11] = src[o + 11];
+  dst[o + 12] = src[o + 12];      dst[o + 13] = src[o + 13];      dst[o + 14] = src[o + 14];      dst[o + 15] = src[o + 15];
 }

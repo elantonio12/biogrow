@@ -1,92 +1,107 @@
-// Especies predefinidas: cada una es un Sistema-L (axioma + reglas)
-// con los parámetros de interpretación que mejor le quedan.
+// =============================================================
+//  "Especies": cada una es un sistema-L distinto (axioma + reglas)
+//  y sus parámetros por defecto. Basadas en Prusinkiewicz &
+//  Lindenmayer, "The Algorithmic Beauty of Plants" (1990).
 //
-// Símbolos que entiende la tortuga (turtle.js):
-//   F       avanzar dibujando una rama
-//   + -     girar izquierda / derecha   (eje Z de la tortuga)
-//   & ^     inclinar adelante / atrás   (eje X)
-//   \ /     rodar sobre su propio eje   (eje Y)
-//   [ ]     guardar / restaurar estado (inicio y fin de una rama)
-// `shrink` es el factor de longitud de cada rama lateral respecto a su padre.
-// Cualquier otro símbolo (A, S, X...) solo sirve para las reglas y no se dibuja.
-//
-// Las reglas pueden ser deterministas (un string) o estocásticas
-// (lista de producciones con probabilidad p). Ver lsystem.js.
+//  Alfabeto de la tortuga:
+//    F  avanzar dibujando un segmento      f  avanzar sin dibujar
+//    +  -  girar (yaw, eje Z local)        &  ^  inclinar (pitch, eje X local)
+//    \  /  rodar (roll, eje Y local)       |  dar media vuelta
+//    [  ]  guardar / recuperar estado      L  hoja explícita
+//  tropism: qué tanto se doblan las ramas hacia arriba en cada segmento
+//    Cualquier otra letra (A, S, X...) solo sirve para la reescritura.
+// =============================================================
 
 export const SPECIES = {
-  arbusto: {
-    name: 'Arbusto 3D',
-    // Tres ramas por nudo, giradas 3 × 22.5° = 67.5° entre sí (filotaxis)
-    axiom: 'X',
-    rules: {
-      X: 'F[&&X]///[&&X]///[&&X]FX',
-      F: 'FF',
-    },
-    angle: 22.5,
-    shrink: 1,
-    iterations: 5,
-    maxIterations: 6,
-    height: 3,
-    radius: 0.05,
-    leafSize: 0.1,
+  'Árbol 3D': {
+    // Tronco FFF y, en cada iteración, un verticilo de 3 ramas
+    // separadas por rodamientos de 4·30° = 120° (/) e inclinadas (&).
+    axiom: 'FFFA',
+    rules: { A: '[&FFA]////[&FFA]////[&FFA]' },
+    tropism: 0.22,
+    angle: 30,
+    iterations: 6,
+    maxIterations: 8,
+    decay: 0.88,
+    shrink: 0.82,
+    radius: 0.14,
+    taper: 0.42,
+    leafSize: 0.3,
+    leavesPerTip: 3,
+    bark: 0x5d4030, twig: 0x8a6a3f, leaf: 0x43a047,
   },
 
-  arbol: {
-    // Basado en la figura 1.25 de "The Algorithmic Beauty of Plants"
-    // (Prusinkiewicz y Lindenmayer, 1990), simplificado.
-    name: 'Árbol (ABOP 1.25)',
-    axiom: 'FA',
-    rules: {
-      A: '[&FA]/////[&FA]///////[&FA]',
-      F: 'S/////F',
-      S: 'F',
-    },
-    angle: 30,
+  'Planta 3D (regla inicial)': {
+    axiom: 'F',
+    rules: { F: 'F[+F][&F]F[-F][^F]F' },
+    tropism: 0,
+    angle: 32,
+    iterations: 4,
+    maxIterations: 5,
+    decay: 1 / 3,      // la altura se triplica por iteración → longitud / 3
     shrink: 0.9,
-    iterations: 6,
-    maxIterations: 7,
-    height: 3.5,
     radius: 0.09,
-    leafSize: 0.12,
+    taper: 0.42,
+    leafSize: 0.16,
+    leavesPerTip: 1,
+    bark: 0x6d4c2f, twig: 0x8a6a3f, leaf: 0x4caf50,
   },
 
-  estocastica: {
-    // Misma especie, pero cada semilla produce un individuo distinto.
-    // X es un ápice (yema) que se reescribe; F → FF hace que los
-    // entrenudos viejos se alarguen mientras la planta crece.
-    name: 'Planta estocástica',
+  'Helecho': {
     axiom: 'X',
-    rules: {
-      X: [
-        { p: 0.34, to: 'F[+X]/F[-X]X' },
-        { p: 0.33, to: 'F[&X]\\F[^X]X' },
-        { p: 0.33, to: 'F[+X][^X]/FX' },
-      ],
-      F: 'FF',
-    },
-    angle: 30,
-    shrink: 1,
-    iterations: 6,
-    maxIterations: 7,
-    height: 3,
-    radius: 0.05,
-    leafSize: 0.12,
-  },
-
-  hierba: {
-    // Basado en la figura 1.24f de ABOP, con giros extra para hacerla 3D
-    name: 'Planta herbácea',
-    axiom: 'X',
-    rules: {
-      X: 'F-[[X]+X]+/F[+FX]-X',
-      F: 'FF',
-    },
+    rules: { X: 'F+[[X]-X]-F[-FX]+X', F: 'FF' },
+    tropism: 0,
     angle: 22.5,
-    shrink: 1,
     iterations: 5,
     maxIterations: 6,
-    height: 3,
-    radius: 0.035,
-    leafSize: 0.08,
+    decay: 0.5,        // F → FF duplica la longitud
+    shrink: 1,
+    radius: 0.06,
+    taper: 0.42,
+    leafSize: 0.2,
+    leavesPerTip: 2,
+    bark: 0x55703a, twig: 0x6b8e3d, leaf: 0x2e8b3a,
+  },
+
+  'Arbusto 3D': {
+    axiom: 'A',
+    rules: {
+      A: '[&FLA]/////[&FLA]///////[&FLA]',
+      F: 'S/////F',
+      S: 'FL',
+    },
+    tropism: 0.08,
+    angle: 22.5,
+    iterations: 6,
+    maxIterations: 7,
+    decay: 0.78,
+    shrink: 1,
+    radius: 0.07,
+    taper: 0.42,
+    leafSize: 0.2,
+    leavesPerTip: 0,   // usa hojas explícitas (símbolo L)
+    bark: 0x7a5233, twig: 0x8d6e3f, leaf: 0x66bb4a,
+  },
+
+  'Hierba estocástica': {
+    axiom: 'F',
+    rules: {
+      F: [
+        { p: 0.33, to: 'F[+F]//F[-F]F' },
+        { p: 0.33, to: 'F[+F]//F' },
+        { p: 0.34, to: 'F[-F]//F' },
+      ],
+    },
+    tropism: 0,
+    angle: 25.7,
+    iterations: 5,
+    maxIterations: 6,
+    decay: 0.4,
+    shrink: 1,
+    radius: 0.04,
+    taper: 0.42,
+    leafSize: 0.12,
+    leavesPerTip: 1,
+    bark: 0x6f8f3a, twig: 0x8bc34a, leaf: 0x9ccc65,
   },
 };
