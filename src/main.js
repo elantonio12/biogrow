@@ -12,7 +12,7 @@ import { SPECIES } from './species.js';
 import { createLightUniforms } from './lighting.js';
 import { createScene, frameCamera, fitShadowCamera } from './scene.js';
 import { createGui } from './gui.js';
-import { showError, updateInfo } from './info.js';
+import { showError, updateInfo, updatePerf } from './info.js';
 import { Pollen } from './particles.js';
 
 const world = createScene();
@@ -223,6 +223,7 @@ function animate(timestamp) {
 
   controls.update();
   renderer.render(scene, camera);
+  updatePerf(dt, renderer.info.render);
 }
 animate();
 

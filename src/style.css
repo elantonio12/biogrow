@@ -45,6 +45,7 @@ canvas { display: block; }
 #info summary { cursor: pointer; color: #4a5a45; }
 #info .str { display: block; margin-top: 4px; line-height: 1.5; }
 #info .muted { color: #8a9685; font-size: 11px; }
+#info .perf { margin-top: 4px; font-variant-numeric: tabular-nums; }
 #info .keys { margin: 8px 0 0; color: #6b7a66; font-size: 11px; }
 kbd {
   background: #fff; border: 1px solid #cfd8ca; border-bottom-width: 2px;
