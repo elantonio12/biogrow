@@ -11,6 +11,10 @@
 import * as THREE from 'three';
 import { makeRng } from './lsystem.js';
 import { createPhongMaterial } from './lighting.js';
+import { createBarkTexture } from './textures.js';
+
+// La textura de corteza se crea una sola vez y la comparten todas las plantas
+let barkTexture = null;
 
 // Interpolación suave (ease-in-out)
 const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
@@ -43,7 +47,9 @@ export class Plant {
     const n = Math.max(segments.length, 1);
     const branchGeo = new THREE.CylinderGeometry(0.85, 1, 1, 7);
     branchGeo.translate(0, 0.5, 0); // la base del cilindro queda en el origen
-    this.branchMat = createPhongMaterial(uniforms);
+    barkTexture ??= createBarkTexture();
+    // repetición (3, 1): la corteza da 3 vueltas alrededor del cilindro
+    this.branchMat = createPhongMaterial(uniforms, { map: barkTexture, mapRepeat: [3, 1] });
     this.branches = new THREE.InstancedMesh(branchGeo, this.branchMat, n);
     this.branches.frustumCulled = false;
     this.branches.castShadow = true;

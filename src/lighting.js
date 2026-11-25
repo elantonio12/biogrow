@@ -6,6 +6,7 @@
 //
 //  Se calcula por fragmento (sombreado de Phong). La intensidad de cada
 //  hoja depende de su orientación (normal N) respecto a la luz (L).
+//  C = color de la instancia × textura (si el material tiene una).
 // =============================================================
 import * as THREE from 'three';
 
@@ -28,8 +29,10 @@ const vertexShader = /* glsl */ `
   varying vec3 vNormalW;
   varying vec3 vPosW;
   varying vec3 vColor;
+  varying vec2 vUv;
 
   void main() {
+    vUv = uv;
     mat4 inst = mat4(1.0);
     #ifdef USE_INSTANCING
       inst = instanceMatrix;          // matriz de cada rama/hoja
@@ -58,10 +61,14 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uAmbient;
   uniform float uKa, uKd, uKs, uShininess;
   uniform int uModel;
+  uniform sampler2D uMap;
+  uniform float uUseMap;
+  uniform vec2 uMapRepeat;
 
   varying vec3 vNormalW;
   varying vec3 vPosW;
   varying vec3 vColor;
+  varying vec2 vUv;
 
   void main() {
     vec3 N = normalize(vNormalW);
@@ -69,6 +76,7 @@ const fragmentShader = /* glsl */ `
     vec3 L = normalize(uLightDir);
     vec3 V = normalize(cameraPosition - vPosW);
     vec3 C = vColor;
+    if (uUseMap > 0.5) C *= texture2D(uMap, vUv * uMapRepeat).rgb;
 
     vec3 color;
     if (uModel == 0) {
@@ -87,6 +95,18 @@ const fragmentShader = /* glsl */ `
   }
 `;
 
-export function createPhongMaterial(uniforms, { side = THREE.FrontSide } = {}) {
-  return new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader, side });
+// Las uniformes de la luz se comparten entre materiales (mismo objeto),
+// así que mover el sol actualiza todo. La textura es propia de cada material.
+export function createPhongMaterial(uniforms, { side = THREE.FrontSide, map = null, mapRepeat = [1, 1] } = {}) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      ...uniforms,
+      uMap: { value: map },
+      uUseMap: { value: map ? 1 : 0 },
+      uMapRepeat: { value: new THREE.Vector2(...mapRepeat) },
+    },
+    vertexShader,
+    fragmentShader,
+    side,
+  });
 }
