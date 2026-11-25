@@ -50,6 +50,8 @@ export function buildPlant(segments, { radius = 0.06, taper = 0.7, leafSize = 0.
     branches.setMatrixAt(i, m);
   };
   branchData.forEach((_, i) => setBranchMatrix(i));
+  branches.castShadow = true;
+  branches.receiveShadow = true;
   group.add(branches);
 
   // --- HOJAS: en la punta de cada rama (segmentos marcados como tip) ---
@@ -73,6 +75,8 @@ export function buildPlant(segments, { radius = 0.06, taper = 0.7, leafSize = 0.
     m.compose(s.end, leafQuat, scale);
     leaves.setMatrixAt(i, m);
   });
+  leaves.castShadow = true;
+  leaves.receiveShadow = true;
   group.add(leaves);
 
   // Crecimiento: solo se dibujan las primeras `visible` instancias.

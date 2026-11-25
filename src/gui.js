@@ -37,6 +37,11 @@ export function createGui(params, actions) {
   growthFolder.add(actions, 'restartGrowth').name('Reiniciar (R)');
   growthFolder.add(actions, 'growInstantly').name('Crecer al instante');
 
+  const sceneFolder = gui.addFolder('Iluminación');
+  sceneFolder.add(params, 'shadows').name('Sombras').onChange(actions.updateLighting);
+  sceneFolder.add(params, 'sunAzimuth', 0, 360, 1).name('Sol: azimut (°)').onChange(actions.updateLighting);
+  sceneFolder.add(params, 'sunElevation', 5, 90, 1).name('Sol: elevación (°)').onChange(actions.updateLighting);
+
   // Vuelve a dibujar los valores cuando cambian desde el teclado
   function refresh() {
     gui.controllersRecursive().forEach((c) => c.updateDisplay());

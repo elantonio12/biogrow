@@ -6,7 +6,7 @@ import { buildPlant, fitToHeight } from './plant.js';
 import { SPECIES } from './species.js';
 import { createGui } from './gui.js';
 
-const { scene, camera, renderer, controls } = createScene();
+const { scene, camera, renderer, controls, setSunAngle, setShadows } = createScene();
 
 // Parámetros actuales de la simulación (el panel los modifica)
 const params = {
@@ -15,6 +15,9 @@ const params = {
   angle: 0,
   seed: 1,
   growthDuration: 15, // segundos que tarda en crecer completa
+  shadows: true,
+  sunAzimuth: 30,   // grados
+  sunElevation: 55, // grados
 };
 
 let plant = null;
@@ -63,9 +66,14 @@ const actions = {
   growInstantly() {
     startTime = performance.now() - params.growthDuration * 1000;
   },
+  updateLighting() {
+    setSunAngle(params.sunAzimuth, params.sunElevation);
+    setShadows(params.shadows);
+  },
 };
 
 loadSpeciesDefaults();
+actions.updateLighting();
 const ui = createGui(params, actions);
 
 // Teclado:  R reinicia el crecimiento,  N nueva semilla,  1-4 cambia de especie
