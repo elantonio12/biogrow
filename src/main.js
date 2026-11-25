@@ -13,10 +13,13 @@ import { createLightUniforms } from './lighting.js';
 import { createScene, frameCamera, fitShadowCamera } from './scene.js';
 import { createGui } from './gui.js';
 import { showError, updateInfo } from './info.js';
+import { Pollen } from './particles.js';
 
 const world = createScene();
 const { scene, camera, renderer, controls, sun } = world;
 const uniforms = createLightUniforms();
+const pollen = new Pollen();
+scene.add(pollen.points);
 
 // ---------------------------------------------------------------
 // Parámetros (los modifica el panel)
@@ -43,6 +46,7 @@ const params = {
   duration: 12,
   progress: 0,
   wind: 0.5,
+  pollen: true,
   // Iluminación
   model: 2,
   azimuth: 35,
@@ -107,6 +111,7 @@ function generate({ keepProgress = true, frame = false } = {}) {
 
   fitShadowCamera(world, plant.box, uniforms.uLightDir.value);
   if (frame) frameCamera(world, plant.box);
+  pollen.setBounds(plant.box);
 
   updateInfo(sp, {
     str, segLen, ms: performance.now() - t0, iterations: params.iterations,
@@ -212,6 +217,8 @@ function animate(timestamp) {
   if (plant) params.progress = growthTime / plant.totalTime;
   uniforms.uTime.value = timer.getElapsed();
   uniforms.uWind.value = params.wind;
+  pollen.points.visible = params.pollen;
+  if (params.pollen) pollen.update(dt, timer.getElapsed(), params.wind);
 
   controls.update();
   renderer.render(scene, camera);
